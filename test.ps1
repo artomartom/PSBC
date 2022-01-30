@@ -2,5 +2,8 @@
 $param =$args[0]
 
  
-	
-write-host $param
+	write-host (  $param) -ForegroundColor DarkGreen
+
+
+     
+ 
