@@ -1,0 +1,129 @@
+Windows logo key  + L    
+
+Lock your PC.
+________________________________________________
+F2
+
+Rename the selected item.
+________________________________________________
+
+
+Alt + Enter
+
+Display properties for the selected item.
+________________________________________________
+
+Ctrl + A
+
+Select all items in a document or window.
+________________________________________________
+
+Ctrl + D (or Delete)
+
+Delete the selected item and move it to the Recycle Bin.
+________________________________________________
+
+Ctrl + Y
+
+Redo an action.
+
+________________________________________________
+
+Ctrl + arrow key (to move to an item) + Spacebar
+
+Select multiple individual items in a window or on the desktop.
+
+________________________________________________
+Shift + Delete
+
+Delete the selected item without moving it to the Recycle Bin first.
+________________________________________________
+PrtScn
+
+Take a screenshot of your whole screen and copy it to the clipboard. 
+
+Note
+
+You can change this shortcut so it also opens  screen snipping, which lets you edit your screenshot. Select Start  > Settings > Ease of Access > Keyboard, and turn on the toggle under Print Screen shortcut.
+________________________________________________
+Windows logo key  + Alt + D
+
+Display and hide the date and time on the desktop.
+________________________________________________
+Windows logo key  + E
+
+Open File Explorer.
+________________________________________________
+Windows logo key  + I
+
+Open Settings.
+________________________________________________
+Windows logo key  + S
+
+Open search.
+________________________________________________
+
+Windows logo key  + Shift + S
+
+Take a screenshot of part of  your screen.
+________________________________________________
+
+Windows logo key  + T
+
+Cycle through apps on the taskbar.
+________________________________________________
+Windows logo key  + V
+
+Open the clipboard. 
+
+Note
+
+To activate this shortcut, select Start  > Settings  > System  > Clipboard, and turn on the toggle under Clipboard history.
+________________________________________________
+Windows logo key  + number
+
+Open the desktop and start the app pinned to the taskbar in the position indicated by the number. If the app is already running, switch to that app.
+________________________________________________
+Windows logo key  + Up arrow
+
+Maximize the window.	
+________________________________________________
+Windows logo key  + Home	
+
+Minimize all except the active desktop window (restores all windows on second stroke).
+________________________________________________
+Ctrl + N
+
+Open a new window.
+________________________________________________
+Ctrl + mouse scroll wheel
+
+Change the size and appearance of file and folder icons.
+________________________________________________
+Ctrl + Shift + N
+
+Create a new folder.
+________________________________________________
+Alt + Up arrow
+
+View the folder that the folder was in.
+________________________________________________
+Windows logo key  + Ctrl + Right arrow
+
+Switch between virtual desktops you’ve created on the right.
+________________________________________________
+Windows logo key  + Ctrl + Left arrow
+
+Switch between virtual desktops you’ve created on the left.
+________________________________________________
+Windows logo key  + Ctrl + F4
+
+Close the virtual desktop you're using.
+________________________________________________
+Shift + click a taskbar button
+
+Open an app or quickly open another instance of an app.
+________________________________________________
+
+
+

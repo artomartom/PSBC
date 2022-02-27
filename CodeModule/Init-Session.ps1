@@ -9,5 +9,5 @@ The module autoloading feature was introduced in PowerShell version 3.
 location specified in $env:PSModulePath.
 #>
 
-Set-Proj  
+Change-Proj  
 GoTo-Proj 
