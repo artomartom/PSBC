@@ -1,1 +1,0 @@
-& "C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2111.9001.0_neutral__8wekyb3d8bbwe\DbgX.Shell.exe";
