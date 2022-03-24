@@ -1,19 +1,35 @@
  
 
- 
-function GoToBuild
+function prefunc `
+{
+   
+   return [pscustomobject]   @{
+   
+      first='true'
+      second=
+      BuildStatus='true'
+   }  ;
+}
+function func `
 {   
-   New-Variable -Name $Projects -Value $(Get-ChildItem -Path $env:Proj) -Option Constant
+
+   
    param(
-      [ValidateSet($Projects)]
-      [string]$Project = $LastCurrentProject.Path
-       
-   ) 
+      [Parameter(ValueFromPipelineByPropertyName = $true)]
+      [string]$BuildStatus = 'false',
+      [string]$other = 'o'
+     
+   )
+
+   if ($BuildStatus -eq 'true' )
+   { return   'build succeeded'     ; }
+   
+   return  'build failed '        ;   
 
     
 }
 
-
+prefunc ;
  
-
-GoToBuild
+ 
+ 
