@@ -1,14 +1,14 @@
 @{   RootModule      = 'CodeModule.psm1'
    FunctionsToExport = @(
-      'GetProj',
-      'SetProj',
-      'NewProj',
-      'MakeProj',
-      'BuildProj',
-      'RunProj',
-      'ClearBuild',
-      'Compile-hlslFile',
-      'EnableDebugFlags'
+      'Get-Project',
+      'Set-Project',
+      'New-Project',
+      'Update-Cmake',
+      'Invoke-Build',
+      'Open-Project',
+      'Clear-BuildDir',
+      'Invoke-fxcCompiler',
+      'Enable-DebugFlags'
    )
    AliasesToExport   = @('')  
    VariablesToExport = @('')
@@ -39,19 +39,24 @@ function GoToProj `
    }
    $global:CurrentProj.Name = $Project;
 }
-function GetProj `
+function Get-Project `
 {  
    Log -Text 'Session Initialized with:'
    $global:CurrentProj   
    #Log -Text "Session Initialized with: $($global:CurrentProj.Name) $($global:CurrentProj.Config) $($global:CurrentProj.Arch)"     
 } 
-function SetProj `
+function Set-Project `
 {
    param(
       [string]$Project = $global:CurrentProj.Name ,
       [ValidateSet('Debug', 'Release')][string]$Config = $global:CurrentProj.Config ,
       [ValidateSet( 'x64', 'x86')][string]$Arch = $global:CurrentProj.Arch 
    )
+
+   
+   $Project = $Project.Replace('\', '');
+   $Project = $Project.Replace('/', '');
+   $Project = $Project.Replace('.', '');
 
    $global:CurrentProj = [PSCustomObject]@{
       PSTypeName = 'ProjectInfo'
@@ -60,80 +65,109 @@ function SetProj `
       Arch       = $Arch 
    } 
    GoToProj;
-   GetProj; 
+   Get-Project; 
+   $global:CurrentProj   | Export-Clixml -Path $HOME/.PS ;
+    
 }
-function NewProj `
+function Restore-Session `
+{
+   $global:CurrentProj = Import-CliXml  $HOME/.PS ; 
+   Set-Project;
+   
+};
+function New-Project `
 {   
+
+  
+
    param ([Parameter(Mandatory = $true)][string] $Name)
    $NewDir = "$($env:Proj)//$($Name)"; 
    New-Item -Path $NewDir -ItemType Directory;
-   git clone https://github.com/artomartom/Hello_World.git    $NewDir;
-   GoToProj $Name;
+   git clone https://github.com/artomartom/Hello_World.git --recurse   $NewDir;
    New-Item -Path "$($NewDir)/Build" -ItemType Directory;
    New-Item -Path "$($NewDir)/Build/x64" -ItemType Directory;
    New-Item -Path "$($NewDir)/Build/x86" -ItemType Directory;
+   Set-Location $NewDir;
    Remove-Item -Path "$($NewDir)/.git" -Recurse -Force;
+   Remove-Item -Path "$($NewDir)/.gitmodules"  -Force;
    
+   git init;
+   git add .  ;
+   git commit -m 'init' ;
+   
+   git submodule  add https://github.com/artomartom/Hello.git Source/Hello;
+     
+   Set-project -Project     $Name;
 }
  
 
 
 <#____________________________________________________Build________________________________________________________#>
 
-function MakeProj `
+function Update-Cmake `
 {
    cmake -S "$($env:Proj)\$($global:CurrentProj.Name)/source" -B "F:\Dev\Projects\$($global:CurrentProj.Name)/build/$($global:CurrentProj.Arch)"  `
       -G"Visual Studio 17 2022"  -T host=x64 -A $($global:CurrentProj.Arch)  
    if ( $LASTEXITCODE -ne 0) { F:\Dev\Projects\PowerShell\CodeModule\util\Play_Sound.exe } ;
 }
-function BuildProj `
+function Invoke-Build `
 {
    param(
       [switch]$AndRun = $false,
       [string]$ProjectName = $global:CurrentProj.Name ,
-      [string]$BuildConfig = $global:CurrentProj.Config 
+      [string]$BuildConfig = $global:CurrentProj.Config,
+      [string[]]$Before ,
+      [string[]]$After 
+
    )
-  
-   Log 'build started' -Col Green  ;
+
+   foreach ($string in $Before)
+   { & $($string) };
+
+   Log "$($ProjectName): build started" -Col Green  ;
+   
+    
+
 
    $StartTime = $(Get-Date -format 'HH:mm:ss' )   ;
    cmake --build "$($env:Proj)\$($ProjectName)\build\x64" --config "$($BuildConfig)" ;
-   
     
-   if ([System.IO.File]::Exists($PostBuild )) { & "$($env:Proj)/$($ProjectName)/PostBuild.ps1" };
     
+   $Status ;
    
    if ($LASTEXITCODE -ne 0) `
    {
+      $Status = 'Error';
       & "$($env:Proj)\PowerShell\CodeModule\util\Play_Sound.exe"  ; 
    
-      [pscustomobject]@{
-         Status     = 'Error'
-         ProjName   = $($ProjectName)
-         ProjConfig = $($BuildConfig)
-      } ;
    }
    else `
    {
-      [pscustomobject]@{
-         Status     = 'build succeeded'
-         ProjName   = $($ProjectName)
-         ProjConfig = $($BuildConfig)
-         StartTime  = "$($StartTime )"
-         EndTime    = "$(Get-Date -format 'HH:mm:ss' )"
-      } ;
+      $Status = 'build succeeded';
       
-      if ($AndRun) { & "$($env:Proj)//$($ProjectName)/build/x64/$($BuildConfig)/$($ProjectName).exe"  ; }
-
+      foreach ($string in $After)
+      { & $($string) };   
    };
+
+   [pscustomobject]@{
+      Status     = $($Status)
+      ProjName   = $($ProjectName)
+      ProjConfig = $($BuildConfig)
+      StartTime  = "$($StartTime )"
+      EndTime    = "$(Get-Date -format 'HH:mm:ss' )"
+   } ;
+
+      
+   if (($LASTEXITCODE -eq 0) -and $AndRun) { & "$($env:Proj)//$($ProjectName)/build/x64/$($BuildConfig)/$($ProjectName).exe"  ; }
+
       
   
-
+  
    
 } 
  
 
-function RunProj `
+function Open-Project `
 {    
    param( 
       [ValidateSet('default', 'ChildProcess')]   [string]$Mode     ) 
@@ -146,7 +180,7 @@ function RunProj `
    
 }
  
-function ClearBuild `
+function Clear-BuildDir `
 { 
    param(
       [string] $ProjectName = $global:CurrentProj.Name ,
@@ -156,7 +190,7 @@ function ClearBuild `
       
 }
 <#____________________________________________________Shaders________________________________________________________#>
-function Compile-hlslFile {
+function Invoke-fxcCompiler {
      
    param( 
       [Parameter(Mandatory = $true)]      [string] $Name  ,
@@ -164,6 +198,8 @@ function Compile-hlslFile {
       [Parameter(Mandatory = $true)]                                      [string] $OutName ,
       [Parameter(Mandatory = $true)]      [ValidateSet('so', 'hpp')]      [string] $OutType ,
       [Parameter(Mandatory = $true)]      [string] $EntryPoint ,
+      [string] $VarName = $EntryPoint,
+      
       [Parameter(Mandatory = $true)]      [ValidateSet(
          'cs_4_0', 'cs_4_1', 'cs_5_0', 'cs_5_1' ,
          'ds_5_0', 'ds_5_1' ,
@@ -190,80 +226,39 @@ function Compile-hlslFile {
    $exe = 'C://Program Files (x86)//Windows Kits//10//bin//10.0.22000.0//x64//fxc.exe';                
    switch ($Config) {
       'Debug' { $Params = @("/E$($EntryPoint)", '/nologo', "/T$( $Profile)", '/O0', '/WX', '/Zi', '/Zss', '/all_resources_bound' ) }
-      'Release' { $Params = @("/E$($EntryPoint)", '/nologo', "/T$( $Profile)", '/O3', '/WX' ) }
+      'Release' { $Params = @("/E$($EntryPoint)", '/nologo', "/T$( $Profile)", '/Vd', '/O3', '/WX' ) }
    };
-         
+   
    switch ($OutType) {
       'so' { $Params += '/Fo'; }
-      'hpp' { $Params += "/Vn$($EntryPoint)" ; $Params += '/Fh'; }
+      'hpp' { $Params += "/Vn$($VarName)" ; $Params += '/Fh'; }
    };   
-  
+   
    $paths =
    @(
       "$out//$($OutName).$OutType" ,
       "$In//$Name.hlsl"     
    );                                                                            
-   & $exe  $Params    $paths  ;
+   $captureOutString = & $exe  $Params    $paths  ;
    #Write-Host $Params $paths
+
+   if ($LASTEXITCODE -eq 0) `
+   {
+      Log -Text "Shader $($Name).hlsl: build succeeded" -Col  Green   
+   }
+   else `
+   {
+      Log -Text $captureOutString -Col  Red   
+   };
 };
  
 <#____________________________________________________Debug________________________________________________________#>
  
  
-function EnableDebugFlags { gflags /i "$($global:CurrentProj.Name).exe"  +sls ; }
-
+function Enable-DebugFlags { gflags /i "$($global:CurrentProj.Name).exe"  +sls ; }
 
 
  
-
-
-
-
-
-   
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-   
-   
-   
-      
-
-
-
-
-   
-
-   
-
-
-
-
-   
-   
-   
-      
-
-
-
-   
-   
-   
-
-
 
 #>
  
