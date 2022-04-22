@@ -3,14 +3,13 @@
       'Get-Project',
       'Set-Project',
       'New-Project',
-      'Update-Cmake',
-      'Invoke-Build',
-      'Open-Project',
+      'Build-Project',
+      'Invoke-Project',
       'Clear-BuildDir',
       'Invoke-fxcCompiler',
       'Enable-DebugFlags'
    )
-   AliasesToExport   = @('')  
+   AliasesToExport   = @('rs')  
    VariablesToExport = @('')
   
 }
@@ -104,37 +103,74 @@ function New-Project `
 
 <#____________________________________________________Build________________________________________________________#>
 
-function Update-Cmake `
+function Invoke-Cmake `
 {
-   cmake -S "$($env:Proj)\$($global:CurrentProj.Name)/source" -B "F:\Dev\Projects\$($global:CurrentProj.Name)/build/$($global:CurrentProj.Arch)"  `
-      -G"Visual Studio 17 2022"  -T host=x64 -A $($global:CurrentProj.Arch)  
-   if ( $LASTEXITCODE -ne 0) { F:\Dev\Projects\PowerShell\CodeModule\util\Play_Sound.exe } ;
+   param(
+      [Parameter(Mandatory = $true)]  [string]$ProjectName,
+      [Parameter(Mandatory = $true)]  [string]$Arch   
+   )
+
+   Log "$($ProjectName) : Running Cmake" -Col Green  ;
+    
+   switch ($Arch) `
+   {
+      'x86' { $MSBuildArchName = 'win32' }
+      Default { $MSBuildArchName = 'x64' }
+   }
+   
+   
+   $output=  cmake -S "$($env:Proj)\$($ProjectName)/source" -B "F:\Dev\Projects\$($ProjectName)/build/$($Arch)"  `
+      -G"Visual Studio 17 2022"  -T host=x64 -A $( $MSBuildArchName);
+
+   if ( $LASTEXITCODE -ne 0) `
+   {
+      F:\Dev\Projects\PowerShell\CodeModule\util\Play_Sound.exe ;
+      
+      [pscustomobject]@{
+         Name         = $($ProjectName)
+         Architecture = $($Arch )
+      };
+
+      Log -Col Red -Text $output ;
+      
+   } ;
+   
+   return $LASTEXITCODE ;
 }
-function Invoke-Build `
+   
+function Build-Project `
 {
    param(
       [switch]$AndRun = $false,
-      [string]$ProjectName = $global:CurrentProj.Name ,
-      [string]$BuildConfig = $global:CurrentProj.Config,
+      [switch]$Make = $false,
       [string[]]$Before ,
       [string[]]$After 
 
    )
 
+   [string]$ProjectName = $global:CurrentProj.Name;
+   [string]$BuildConfig = $global:CurrentProj.Config;
+   
    foreach ($string in $Before)
    { & $($string) };
-
-   Log "$($ProjectName): build started" -Col Green  ;
-   
+      
+   if ($Make) `
+   {
     
+      if (0 -ne (Invoke-Cmake -ProjectName  $ProjectName -Arch   $global:CurrentProj.Arch) ) `
+      {
+         return ;
+      };   
+    
+   };
 
+   Log "$($ProjectName) : build started" -Col Green  ;
 
    $StartTime = $(Get-Date -format 'HH:mm:ss' )   ;
    cmake --build "$($env:Proj)\$($ProjectName)\build\x64" --config "$($BuildConfig)" ;
     
     
    $Status ;
-   
    if ($LASTEXITCODE -ne 0) `
    {
       $Status = 'Error';
@@ -149,6 +185,7 @@ function Invoke-Build `
       { & $($string) };   
    };
 
+   
    [pscustomobject]@{
       Status     = $($Status)
       ProjName   = $($ProjectName)
@@ -158,26 +195,13 @@ function Invoke-Build `
    } ;
 
       
-   if (($LASTEXITCODE -eq 0) -and $AndRun) { & "$($env:Proj)//$($ProjectName)/build/x64/$($BuildConfig)/$($ProjectName).exe"  ; }
+   if (($LASTEXITCODE -eq 0) -and $AndRun) { Invoke-Project  ; }
 
-      
-  
-  
-   
 } 
- 
 
-function Open-Project `
+function Invoke-Project `
 {    
-   param( 
-      [ValidateSet('default', 'ChildProcess')]   [string]$Mode     ) 
-        
-   $exe = "$($env:Proj)//$($global:CurrentProj.Name)/build/x64/$($global:CurrentProj.Config)/$($global:CurrentProj.Name).exe" ;
-   switch ($Mode) {
-      'ChildProcess' { & F:\Dev\Projects\PowerShell\CodeModule\util/Run_Process.exe "$exe" }
-      Default { & $exe  ; }
-   }
-   
+  & "$($env:Proj)//$($global:CurrentProj.Name)/build/x64/$($global:CurrentProj.Config)/$($global:CurrentProj.Name).exe" ;
 }
  
 function Clear-BuildDir `
@@ -252,19 +276,13 @@ function Invoke-fxcCompiler {
    };
 };
  
+<#____________________________________________________Git________________________________________________________#>
+
+function  git_log_but_cool { git log --graph --decorate --oneline; };
 <#____________________________________________________Debug________________________________________________________#>
  
  
 function Enable-DebugFlags { gflags /i "$($global:CurrentProj.Name).exe"  +sls ; }
 
 
- 
-
-#>
- 
- 
-
-
-
-#Get-Content -Path C:\Test\computers.txt | Get-ConnectionStatus 
-#may be used to read  project state from file 
+  
