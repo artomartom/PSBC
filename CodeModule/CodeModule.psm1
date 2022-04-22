@@ -119,7 +119,7 @@ function Invoke-Cmake `
    }
    
    
-   $output=  cmake -S "$($env:Proj)\$($ProjectName)/source" -B "F:\Dev\Projects\$($ProjectName)/build/$($Arch)"  `
+   $output = cmake -S "$($env:Proj)\$($ProjectName)/source" -B "F:\Dev\Projects\$($ProjectName)/build/$($Arch)"  `
       -G"Visual Studio 17 2022"  -T host=x64 -A $( $MSBuildArchName);
 
    if ( $LASTEXITCODE -ne 0) `
@@ -151,8 +151,11 @@ function Build-Project `
    [string]$ProjectName = $global:CurrentProj.Name;
    [string]$BuildConfig = $global:CurrentProj.Config;
    
-   foreach ($string in $Before)
-   { & $($string) };
+   foreach ($string in $Before) `
+   {
+      & $($string)
+      if (0 -ne $LASTEXITCODE ) { return; } ;
+   };
       
    if ($Make) `
    {
@@ -181,8 +184,11 @@ function Build-Project `
    {
       $Status = 'build succeeded';
       
-      foreach ($string in $After)
-      { & $($string) };   
+      foreach ($string in $After) `
+      {
+         & $($string) ;
+         if (0 -ne $LASTEXITCODE ) { return; } ;
+      };   
    };
 
    
@@ -201,7 +207,7 @@ function Build-Project `
 
 function Invoke-Project `
 {    
-  & "$($env:Proj)//$($global:CurrentProj.Name)/build/x64/$($global:CurrentProj.Config)/$($global:CurrentProj.Name).exe" ;
+   & "$($env:Proj)//$($global:CurrentProj.Name)/build/x64/$($global:CurrentProj.Config)/$($global:CurrentProj.Name).exe" ;
 }
  
 function Clear-BuildDir `
