@@ -9,7 +9,7 @@
       'Invoke-fxcCompiler',
       'Enable-DebugFlags'
    )
-   AliasesToExport   = @('rs')  
+   AliasesToExport   = @('')  
    VariablesToExport = @('')
   
 }
@@ -76,25 +76,40 @@ function Restore-Session `
 };
 function New-Project `
 {   
-
-  
-
    param ([Parameter(Mandatory = $true)][string] $Name)
    $NewDir = "$($env:Proj)//$($Name)"; 
    New-Item -Path $NewDir -ItemType Directory;
-   git clone https://github.com/artomartom/Hello_World.git --recurse   $NewDir;
+   git clone https://github.com/artomartom/Hello_World.git     $NewDir;
+
+   if ($LASTEXITCODE -ne 0 ) { return ; };
+
    New-Item -Path "$($NewDir)/Build" -ItemType Directory;
    New-Item -Path "$($NewDir)/Build/x64" -ItemType Directory;
    New-Item -Path "$($NewDir)/Build/x86" -ItemType Directory;
    Set-Location $NewDir;
    Remove-Item -Path "$($NewDir)/.git" -Recurse -Force;
    Remove-Item -Path "$($NewDir)/.gitmodules"  -Force;
+   Remove-Item -Path "$($NewDir)/Source/Hello"  -Force;
+
+   $Cmake = 'Source/CMakeLists.txt';
+   $Content = (Get-Content   $Cmake -Raw);
+   $Content.Replace('Hello_World', $Name);
+   $Content.Replace('Hello_World', $Name) | Set-Content  $Cmake
    
    git init;
-   git add .  ;
-   git commit -m 'init' ;
    
    git submodule  add https://github.com/artomartom/Hello.git Source/Hello;
+   
+   if ($LASTEXITCODE -eq 0 ) `
+   {
+      Set-Location  ./Source/Hello;
+      git branch -u origin/main main;
+      
+   };
+   
+   git add .  ;
+   git commit -m 'init' ;
+
      
    Set-project -Project     $Name;
 }
@@ -110,14 +125,16 @@ function Invoke-Cmake `
       [Parameter(Mandatory = $true)]  [string]$Arch   
    )
 
-   Log "$($ProjectName) : Running Cmake" -Col Green  ;
-    
+   if (!$ProjectName) { return -1; };
+   
    switch ($Arch) `
    {
       'x86' { $MSBuildArchName = 'win32' }
-      Default { $MSBuildArchName = 'x64' }
+      'x64' { $MSBuildArchName = 'x64' }
+      Default { Log -Col Red -Text "Invalid input parameter 'Arch' $($Arch)"; return -1; }
    }
    
+   Log "$($ProjectName) : Running Cmake" -Col Green  ;
    
    $output = cmake -S "$($env:Proj)\$($ProjectName)/source" -B "F:\Dev\Projects\$($ProjectName)/build/$($Arch)"  `
       -G"Visual Studio 17 2022"  -T host=x64 -A $( $MSBuildArchName);
