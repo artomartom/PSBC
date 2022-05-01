@@ -93,8 +93,7 @@ function New-Project `
 
    $Cmake = 'Source/CMakeLists.txt';
    $Content = (Get-Content   $Cmake -Raw);
-   $Content.Replace('Hello_World', $Name);
-   $Content.Replace('Hello_World', $Name) | Set-Content  $Cmake
+   $Content.Replace('Hello_World', $Name) | Set-Content  $Cmake;
    
    git init;
    
@@ -291,7 +290,7 @@ function Invoke-fxcCompiler {
 
    if ($LASTEXITCODE -eq 0) `
    {
-      Log -Text "Shader $($Name).hlsl: build succeeded" -Col  Green   
+      Log -Text "Shader $($($EntryPoint))/$($Name).hlsl: build succeeded" -Col  Green   
    }
    else `
    {
