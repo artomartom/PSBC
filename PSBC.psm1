@@ -1,68 +1,225 @@
 
-function Log {
-   param(
-      [string] $Text = $(Get-Date -format 'HH:mm:ss' ),
-      [string] $Col = 'Cyan'
-   )
-   write-host   -ForegroundColor  $Col -Object $Text
+
+ 
+
+Class Serializer {
+
+   static hidden [void]  Export([Project]$Object  ) {
+      if ((Test-Path $Object.Path) -eq $true) {
+         $Object | Export-Clixml "$($Object.Path).PSBC";
+      }
+      else {
+         Write-Error 'Export: Object path failed test';
+      }
+   }
+
+   static hidden [Project] Import(   [string]$Path ) {
+    
+      #if path exists resolve it and check if it conteins the file 
+      if ((Test-Path $Path) -eq $true) {
+
+         $Path = Resolve-Path $Path;
+
+         Get-ChildItem  $Path -Filter '.PSBC' | Where-Object { 
+            $deserializedProject = Import-CliXml "$($Path)//.PSBC";
+            
+            #if file is of type Project return it 
+            if ([type]$deserializedProject.ToString() -eq [Project]) {
+               return $deserializedProject;
+            }
+         }
+      }
+      return $null;
+
+   }
 }
 
- 
-function Get-Project {  
+
+
+Class Project {
+   #  ctr
+
+   <#
+   called from a cmdlet 
+   $Path is always current path
+   #>
+   Project( [string]$Path   ) {  
+
+      [Project]$Proj = [Serializer]::Import($Path);
+      if ($null -ne $Proj   ) {
+         $this.[Project]::new($Proj); #move  
+      }
+      
+      $this.[Project]::new();
+   }
+
+   <# move ctr   #>
+   Project( [Project]$Other   ) {  
+      $this.Path = $Other.Path;
+      $this.Name = $Other.Name;
+      $this.Config = $Other.Config;
+      $this.Arch = $Other.Arch;
+      $this.Before = $Other.Before;
+      $this.After = $Other.After;
+      $this.guid = $Other.guid;
+      
+      $Other.Path = $null;
+      $Other.Name = $null;
+      $Other.Config = $null;
+      $Other.Arch = $null;
+      $Other.Before = $null;
+      $Other.After = $null;
+      $Other.guid = $null;
    
-   Import-CliXml  $HOME/.PS; 
-} 
+   }
 
-function Restore-Session {  
+   <#gets internally  call if any other constuctor fails to find project file. 
+   It creates a new project file in current directory 
+   #>
+   hidden Project(    ) {  
+      $this.Path = Resolve-Path './';
+      $this.Name = 'Unknown';
+      $this.SetConfigDebug();
+      $this.SetArch('x64');
+      $this.NewGuid();
+      [Serializer]::ExportProject($this);
+   }
+   # methods :
+
+   #set methods
+
+   [void] SetConfig( [string]$Config   ) {
+
+      switch ($Config) {
+         'Debug' { $this.Config = 'Debug'; }
+         'Release' { $this.Config = 'Release'; }
+         Default { Write-Error "Unknown config $($Config), operation interrupted"; }
+      };
+     
+   }
+   [void] SetConfigDebug(    ) {
+      $this.SetConfig('Debug');
+   }
+
+   [void] SetConfigRelease(    ) {
+      $this.SetConfig('Release');
+   }
+
+   [void] SetName(   [string]$NewName ) {
+      $this.Name = $NewName; 
+       
+   }
+
+   [void] SetArch(  [string]$NewArch  ) {
+      $this.Arch = $NewArch; 
     
-   $Data = Get-Project ; 
-   Set-Project -Path $Data.Path   -Config  $Data.Config  -Arch $Data.Arch;
-} 
- 
+   }
+  
+   [void] NewGuid() {
+      $this.guid = New-Guid;
+   }
 
-function Select-Project {  
-    
-   Set-Location $(Get-Project).Path;
-} 
 
  
-function Set-Project {
-   param(
-      [Parameter(Mandatory = $true,
-         Position = 0,
-         ParameterSetName = 'Path',
-         ValueFromPipelineByPropertyName = $true,
-         HelpMessage = 'Path to one project root directory')]
-      [ValidateNotNullOrEmpty()]
-      [SupportsWildcards()]
-      [string[]]
-      $Path,
-
-      [ValidateSet('Debug', 'Release')]
-      [string]
-      $Config = 'Debug',
-
-      [ValidateSet( 'x64', 'x86')]
-      [string]
-      $Arch = 'x64'
-   )
-   $FullPath = Resolve-Path $Path;
+   #build methods
+   [int] Before() {
+      foreach ($string in $this.Before) {
+         & $($string)
+         if (0 -ne $LASTEXITCODE ) { return 0; } ;
+      };
+      return 1;
+   }
    
- 
-   if (( Test-Path    $FullPath -PathType  Container ) -eq $false) {
-      return Write-Error  "Path $($FullPath) does not exist";
-   };
+   [int] After() {
+      foreach ($string in $this.After) {
+         & $($string)
+         if (0 -ne $LASTEXITCODE ) { return 0; } ;
+      };
+      return 1;
+   }
+
+   [int] Make( ) {
+      $MSBuildArchName = '';
+      switch ($this.Arch) {
+         'x86' { $MSBuildArchName = 'win32' }
+         'x64' { $MSBuildArchName = 'x64' }
+         Default { Write-Error "Invalid input parameter 'Arch' $($this.Arch)"; return -1; }
+      }
+        
+      write-host "$($this.Name) : Running Cmake" -ForegroundColor Green  ;
+        
+      $output = cmake -S "$($this.Path)/Source" -B "$($this.Path)/Build/"  
+      -G"Visual Studio 17 2022"  -T host=x64 -A $( $MSBuildArchName);
+     
+      if ( $LASTEXITCODE -ne 0) {
+           
+         [pscustomobject]@{
+            Name         = $($this.Name)
+            Architecture = $($this.Arch )
+         };
+         Write-Error  $output ;
+      };
+        
+      return $LASTEXITCODE ;
+   }
+  
+   [void] Build(    ) {
+
+      Write-Host "$($this.Name) : build started" -ForegroundColor Green  ;
+      $StartTime = $(Get-Date -format 'HH:mm:ss' )   ;
+      cmake --build "$($this.Path)//Build" --config "$($this.Config)" ;
+      $Status = '';
+      if ($LASTEXITCODE -ne 0) {
+         $Status = 'Error';
+      }
+      else {
+         $Status = 'build succeeded';
+      };
+      [pscustomobject]@{
+         Status     = $($Status)
+         ProjName   = $this.Name  
+         ProjConfig = $($this.Config)
+         StartTime  = "$($StartTime)"
+         EndTime    = "$(Get-Date -format 'HH:mm:ss' )"
+      };
+   }
+
+   [void] Run( ) {
+      & "$($this.Path)//Build//$($this.Config)//$($this.Name).exe" ;
+   }
    
-   [PSCustomObject]@{
-      PSTypeName = 'ProjectData'
-      Path       = $FullPath  
-      Config     = $Config
-      Arch       = $Arch 
-   }  | Export-Clixml -Path $HOME/.PS ;
- 
-    
-} 
- 
+   #  members:
+   <# 
+   Absolute path to the project's root directory.
+   Root directory contains one .PSBC ("$($this.Path)//.PSBC") file storing serizlized Project object
+   leaf of path allowed to be equal to Project::Name member, but not restricted to be the same.
+   #>
+   [String]$Private:Path;
+
+   <# project name / target name (projects producing anything besides one .exe file are no supported for now)
+   #>
+   [String]$Private:Name;
+   
+   <# project's configuration 
+   TODO: add strong typization to this member, different build options support   
+   #>
+   [String]$Private:Config;
+
+   <# project's architecture
+   don't see much sense to add anything here, it just exists as a member for now   
+   #>
+   [String]$Private:Arch;
+
+   <#  array of path to invokable files to execute before starting project::build method  #>
+   [String]$Private:Before;
+
+   <#      same as $before, but after,u get it lol    #>
+   [String]$Private:After;
+
+   [GUID]$Private:guid;
+
+}
+
 
 function New-Project {   
    param (
@@ -77,9 +234,9 @@ function New-Project {
    if (!Test-Path   $Path -PathType  Container) {
       return Write-Error  "Path $($Path) does not exist";
    }
-   Set-Project -Path  $Path -Name $NewDir  -Config 'Debug' -Arch 'x64';
    
    New-Item -Path $Path -ItemType Directory;
+   Set-Project -Path  $NewDir    -Config 'Debug' -Arch 'x64';
    git clone https://github.com/artomartom/Hello_World.git     $Path;
 
    if ($LASTEXITCODE -ne 0 ) { return ; };
@@ -98,8 +255,7 @@ function New-Project {
    
    git submodule  add https://github.com/artomartom/Hello.git Source/Hello;
    
-   if ($LASTEXITCODE -eq 0 ) `
-   {
+   if ($LASTEXITCODE -eq 0 ) {
       Set-Location  ./Source/Hello;
       git branch -u origin/main main;
       
@@ -108,123 +264,7 @@ function New-Project {
    git add .  ;
    git commit -m 'init' ;
     
-}
- 
-function Invoke-Cmake {
-   param(
-      [Parameter(Mandatory = $true)] 
-      [ValidateNotNullOrEmpty()]
-      [string]
-      $Path,
-      [Parameter(Mandatory = $true)] 
-      [ValidateNotNullOrEmpty()]
-      [string]
-      $Arch   
-   )
-
-   if (!Test-Path $Path) { return -1; };
-   
-   switch ($Arch) `
-   {
-      'x86' { $MSBuildArchName = 'win32' }
-      'x64' { $MSBuildArchName = 'x64' }
-      Default { Log -Col Red -Text "Invalid input parameter 'Arch' $($Arch)"; return -1; }
-   }
-
-   
-   Log "$($ProjectName) : Running Cmake" -Col Green  ;
-   
-   $output = cmake -S "$($Path)/Source" -B "$($Path)/Build/"  `
-      -G"Visual Studio 17 2022"  -T host=x64 -A $( $MSBuildArchName);
-
-   if ( $LASTEXITCODE -ne 0) `
-   {
-      
-      [pscustomobject]@{
-         Name         = $($ProjectName)
-         Architecture = $($Arch )
-      };
-
-      Log -Col Red -Text $output ;
-      
-   } ;
-   
-   return $LASTEXITCODE ;
-}
-   
-function Build-Project {
-   param(
-      [switch]
-      $AndRun = $false,
-      [switch]
-      $Make = $false,
-      [string[]]
-      $Before,
-      [string[]]
-      $After 
-   )
-
-   $ProjectName = Get-Project;
-   
-   foreach ($string in $Before) {
-      & $($string)
-      if (0 -ne $LASTEXITCODE ) { return; } ;
-   };
-      
-   if ($Make) {
-    
-      if (0 -ne (Invoke-Cmake -ProjectName  $ProjectName -Arch   $global:CurrentProj.Arch) ) `
-      {
-         return ;
-      };   
-    
-   };
-
-   Log "$($ProjectName) : build started" -Col Green  ;
-
-   $StartTime = $(Get-Date -format 'HH:mm:ss' )   ;
-   cmake --build "$($ProjectName.RootDir)//$($ProjectName.Name)\build" --config "$($BuildConfig)" ;
-    
-    
-   $Status ;
-   if ($LASTEXITCODE -ne 0) {
-      $Status = 'Error';
-   
-   }
-   else {
-      $Status = 'build succeeded';
-      
-      foreach ($string in $After) {
-         & $($string) ;
-         if (0 -ne $LASTEXITCODE ) { return; } ;
-      };   
-   };
-
-   
-   [pscustomobject]@{
-      Status     = $($Status)
-      ProjName   = $($ProjectName)
-      ProjConfig = $($BuildConfig)
-      StartTime  = "$($StartTime )"
-      EndTime    = "$(Get-Date -format 'HH:mm:ss' )"
-   } ;
-
-      
-   if (($LASTEXITCODE -eq 0) -and $AndRun) { Invoke-Project  ; }
-
 } 
-
-function Invoke-Project {    
-   $Project = Get-Project;
-   & "$($Project.RootDir)//$($Project.Name)/build/$($Project.Config)/$($Project.Name).exe" ;
-}
- 
-function Clear-BuildDir { 
-  
-   $Project = Get-Project;
-   Get-ChildItem -Path "$($Project.RootDir)//$($Project.Name)\build\"  -File   -Recurse | ForEach-Object { $_.Delete() }
-      
-}
 <#____________________________________________________Shaders________________________________________________________#>
 function Invoke-fxcCompiler {
      
@@ -292,10 +332,10 @@ function Invoke-fxcCompiler {
    #Write-Host $Params $paths
 
    if ($LASTEXITCODE -eq 0) {
-      Log -Text "Shader $($($EntryPoint))/$($Name).hlsl: build succeeded" -Col  Green   
+      Write-Host   "Shader $($($EntryPoint))/$($Name).hlsl: build succeeded" -ForegroundColor  Green;
    }
    else {
-      Log -Text $captureOutString -Col  Red   
+      Write-Error   $captureOutString;
    };
 };
  
@@ -304,4 +344,5 @@ function  git_log_but_cooler { git log --graph --decorate --oneline; };
 function Enable-DebugFlags { gflags /i "$($Project.Path).exe"  +sls ; }
 
 
-  
+#new-project create a complitely new proj, if doesn't exist at path (pull from git )
+#

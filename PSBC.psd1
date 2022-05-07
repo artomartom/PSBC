@@ -68,25 +68,9 @@
     # Functions to export from this module
     FunctionsToExport = @(
         
-        'Get-Project',
-        'Set-Project',
-        'Set-Project',
-        'New-Project',
-        'Build-Project',
-        'Invoke-Project',
-        'Clear-BuildDir',
-        'Invoke-fxcCompiler',
-        'git_log_but_cooler',
-        'Enable-DebugFlags' 
+        'Restore-Project'
+         
     )
-    
-    
-    
-    
-    
-    
-    
-    
     
     # Cmdlets to export from this module
     CmdletsToExport   = '*'
