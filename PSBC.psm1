@@ -112,7 +112,11 @@ Class Project {
 
     [void] SetArch(  [string]$NewArch  ) {
         $this.Arch = $NewArch; 
-    }
+    }   
+
+    [void] Execute(  ) {
+        & "$($this.Path)//Build/$($this.Config)//$($this.Name).exe";
+    }   
     
     #  members:
     <# 
@@ -157,6 +161,70 @@ function  Initialize-Project {
     
     return $NewProject;
 }; 
+function  New-Project { 
+    param (
+        [Parameter(Mandatory = $true)]
+        [string] 
+        $Path 
+    )
+    
+    Import-Module 'F:\Dev\Projects\PowerShell\PSBC.psm1'
+           
+    $NewName = Split-Path $Path -Leaf;
+    if (Test-Path $Path ) {
+        Write-Error  "directory with name $($NewName) already exists";
+        return $null;
+    }
+        
+    $NewName = Split-Path $Path -Leaf;
+    
+    $ExistPath = Split-Path $Path
+    $ExistPath = Resolve-Path $ExistPath;
+     
+    if ($null -eq $ExistPath) {
+        Write-Error  "Path $($Path) does not exist";
+        return $null;
+    }
+    else {
+        New-Item -Path $ExistPath -Name $NewName -ItemType Directory;
+        $Path = Resolve-Path $Path    ;
+        Set-Location $Path;
+        Write-Host   "Path is $($Path) ";
+        Write-Host   "existing Path is $($ExistPath) ";
+        Write-Host   "Name is $($NewName) ";
+    }
+         
+    git clone https://github.com/artomartom/Hello_World.git  ;
+      
+    if ($LASTEXITCODE -ne 0 ) { return ; };
+      
+    New-Item -Path './Build' -ItemType Directory;
+    Remove-Item -Path './.git' -Recurse -Force;
+    Remove-Item -Path './.gitmodules'  -Force;
+    Remove-Item -Path './Source/Hello'  -Force;
+      
+    $Cmake = 'Source/CMakeLists.txt';
+    $Content = (Get-Content   $Cmake -Raw);
+    $Content.Replace('Hello_World', $NewDir) | Set-Content  $Cmake;
+         
+    git init;
+         
+    git submodule  add https://github.com/artomartom/Hello.git Source/Hello;
+         
+    if ($LASTEXITCODE -eq 0 ) {
+        Set-Location  ./Source/Hello;
+        git branch -u origin/main main;
+            
+    };
+         
+    git add .  ;
+    git commit -m 'init' ;
+    $NewProj = Initialize-Project   ;
+    $NewProj.SetName($NewName);
+    
+    Remove-Module PSBC;
+    return $NewProj
+}    
  
 function  Get-Project { 
     [CmdletBinding()]
@@ -167,12 +235,12 @@ function  Get-Project {
 
     [Project]$Project = [Serializer]::Import($Path );
      
-    $Project.Path
+    
     if ( $null -eq $Project ) {
         Write-Error 'Project not found';
     }
     else {
-        return [Project]$Project;
+        return  $Project;
     }
 };
 
@@ -190,7 +258,7 @@ function  Make-Project {
       
     write-host "$($Project.Name) : Running Cmake" -ForegroundColor Green  ;
       
-    $output = cmake -S "$($this.Path)/Source" -B "$($Project.Path)/Build/" -G"Visual Studio 17 2022"  -T host=x64 -A $( $MSBuildArchName);
+    $output = cmake -S "$($Project.Path)//Source//" -B "$($Project.Path)/Build/" -G"Visual Studio 17 2022"  -T host=x64 -A $( $MSBuildArchName);
    
     if ( $LASTEXITCODE -ne 0) {
          
@@ -218,10 +286,11 @@ function  Build-Project {
         $Project.Before();
     }
     if ($Make) {
-        if (   Make-Project -Project $Project  -eq $false ) {
+        if (  $false -eq (Make-Project -Project $Project ) ) {
             return ;
         };
     }
+    
 
     Write-Host "$($Project.Name) : build started" -ForegroundColor Green  ;
     $StartTime = $(Get-Date -format 'HH:mm:ss' )   ;
@@ -234,6 +303,9 @@ function  Build-Project {
         $Status = 'build succeeded';
         if ($After) {
             $Project.After();
+        }
+        if ($AndRun) {
+            $Project.Execute();
         }
     };
 

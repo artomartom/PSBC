@@ -68,7 +68,10 @@
     # Functions to export from this module
     FunctionsToExport = @(
         
-        'Restore-Project'
+        'Initialize-Project'
+        'Get-Project'
+        'New-Project'
+        'Build-Project'
          
     )
     
