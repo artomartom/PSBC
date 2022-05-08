@@ -10,8 +10,8 @@
       <S N="Name">NewProject</S>
       <S N="Config">Debug</S>
       <S N="Arch">X64</S>
-      <S N="Before"></S>
-      <S N="After"></S>
+      <Nil N="Before" />
+      <Nil N="After" />
     </Props>
   </Obj>
 </Objs>

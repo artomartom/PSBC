@@ -4,9 +4,16 @@
 
 Class Serializer {
 
+    static hidden [bool]  Move([Project]$Object, [string]$NewPath  ) {
+        return $false;
+    }
+
     static hidden [bool]  Export([Project]$Object  ) {
         if ((Test-Path $Object.Path) -eq $true) {
-            #Write-host 'Exporting'
+
+            
+
+            Write-host "$($Object.Path): Exporting"
             $Object | Export-Clixml "$($Object.Path)//.PSBC";
             return $true;
         }
@@ -44,7 +51,7 @@ Class Project {
     
     # ctr
     
-    Project(    ) {  
+    hidden Project(    ) {  
 
         $this.Path = Resolve-Path './';
         $this.Name = 'NewProject';
@@ -52,13 +59,29 @@ Class Project {
         $this.Arch = 'X64';
         $this.Before = $null;
         $this.After = $null;
-        $this.Export();
+       
 
     }
     
     # methods :
+    
+    hidden [void] Move( [Project]$Other   ) {
+        $this.Path = $Other.Path;
+        $this.Name = $Other.Name;
+        $this.Config = $Other.Config;
+        $this.Arch = $Other.Arch;
+        $this.Before = $Other.Before;
+        $this.After = $Other.After;
+         
+    }
 
-    #set methods
+
+    #set methodsSet
+    [void] SetPath( [string]$NewPath   ) {
+
+        $this.Path = Resolve-Path  $NewPath;
+        #TODO:serializer moves PSBC file 
+    }
 
     [void] SetConfig( [string]$Config   ) {
 
@@ -69,6 +92,7 @@ Class Project {
         };
      
     }
+
     [void] SetConfigDebug(    ) {
         $this.SetConfig('Debug');
     }
@@ -77,44 +101,18 @@ Class Project {
         $this.SetConfig('Release');
     }
 
-    [void] SetName(   [string]$NewName ) {
-        $this.Name = $NewName; 
-       
+    [void] SetName([string]$NewName ) {
+        if ((test-path $NewName -IsValid) -eq $true) {
+            $this.Name = $NewName; 
+        }
+        else {
+            Write-Error "Invalid Name $($NewName)";
+        };
     }
 
     [void] SetArch(  [string]$NewArch  ) {
         $this.Arch = $NewArch; 
-    
     }
-   
-    [bool] IsValid(   ) {
-        return ($null -eq $this);
-    }
-
-  
-    
-    #serizlization  methods for indirect calls to serializer class
-
-    [bool] Import([string]$Path ) {
-        #Write-Host 'import method'
-        $Imported = [Serializer]::Import( $Path);
-        
-        if ($null -ne $Imported) {
-            $this.Move(  $Imported);
-            Write-Host "Project imported: $($this.Name)"
-            return $true;
-        }
-        Write-Warning 'import: skipped';
-        return $false;
-    }
-
-    [bool] Export() {
-        #Write-Host 'Export method'
-        [Serializer]::Export($this);
-        Write-Host "Project Exported: $($this.Name)"
-        return $true;
-    }
- 
     
     #  members:
     <# 
@@ -122,52 +120,128 @@ Class Project {
             Root directory contains one .PSBC ("$($this.Path)//.PSBC") file storing serizlized Project object
             leaf of path allowed to be equal to Project::Name member, but not restricted to be the same.
             #>
-    [String]$Private:Path = $null;
+    hidden [String]$Private:Path = $null;
  
     <# project name / target name (projects producing anything besides one .exe file are no supported for now)
     #>
-    [String]$Private:Name = $null;
+    hidden [String]$Private:Name = $null;
     
     <# project's configuration 
     TODO: add strong typization to this member, different build options support   
     #>
-    [String]$Private:Config = $null;
+    hidden [String]$Private:Config = $null;
  
     <# project's architecture
     don't see much sense to add anything here, it just exists as a member for now   
     #>
-    [String]$Private:Arch = $null;
+    hidden [String]$Private:Arch = $null;
  
     <#  array of path to invokable files to execute before starting project::build method  #>
-    [String]$Private:Before = $null;
+    hidden [String[]]$Private:Before = $null;
  
     <#      same as $before, but after,u get it lol    #>
-    [String]$Private:After = $null; 
+    hidden [String[]]$Private:After = $null; 
 
 }
- 
 
 function  Initialize-Project { 
     [CmdletBinding()]
-    param()
+    [OutputType([Project])]
+    param(
+        [string]$Path = './'
+    )
 
-    return [Project]::new( );
+    [Project]$NewProject = [Project]::new( );
+    $NewProject.SetPath( $Path);
+    [Serializer]::Export($NewProject  );
+    
+    return $NewProject;
 }; 
-
  
 function  Get-Project { 
     [CmdletBinding()]
-    param()
+    [OutputType([Project])]
+    param(
+        [string]$Path = './'
+    )
 
-    [Project]$Project = [Serializer]::Import('./');
-    Write-host "Path: $($Project.Path)"
+    [Project]$Project = [Serializer]::Import($Path );
+     
+    $Project.Path
     if ( $null -eq $Project ) {
         Write-Error 'Project not found';
-
     }
     else {
-
-        return $Project;
+        return [Project]$Project;
     }
 };
- 
+
+function  Make-Project { 
+    [CmdletBinding()]
+    param(
+        [Project]$Project 
+    )
+    $MSBuildArchName = '';
+    switch ($Project.Arch) {
+        'x86' { $MSBuildArchName = 'win32' }
+        'x64' { $MSBuildArchName = 'x64' }
+        Default { Write-Error "Invalid input parameter 'Arch' $($Project.Arch)"; return $false; }
+    }
+      
+    write-host "$($Project.Name) : Running Cmake" -ForegroundColor Green  ;
+      
+    $output = cmake -S "$($this.Path)/Source" -B "$($Project.Path)/Build/" -G"Visual Studio 17 2022"  -T host=x64 -A $( $MSBuildArchName);
+   
+    if ( $LASTEXITCODE -ne 0) {
+         
+        [pscustomobject]@{
+            Name         = $($Project.Name)
+            Architecture = $($Project.Arch )
+        };
+        Write-Error  $output ;
+        return $false;
+    };
+    return $true;
+}
+
+function  Build-Project { 
+    [CmdletBinding()]
+    param(
+        [Project]$Project,
+        [switch]$AndRun,
+        [switch]$Make,
+        [switch]$Before,
+        [switch]$After
+    )
+   
+    if ($Before) {
+        $Project.Before();
+    }
+    if ($Make) {
+        if (   Make-Project -Project $Project  -eq $false ) {
+            return ;
+        };
+    }
+
+    Write-Host "$($Project.Name) : build started" -ForegroundColor Green  ;
+    $StartTime = $(Get-Date -format 'HH:mm:ss' )   ;
+    cmake --build "$($Project.Path)//Build" --config "$($Project.Config)" ;
+    $Status = '';
+    if ($LASTEXITCODE -ne 0) {
+        $Status = 'Error';
+    }
+    else {
+        $Status = 'build succeeded';
+        if ($After) {
+            $Project.After();
+        }
+    };
+
+    [pscustomobject]@{
+        Status     = $($Status)
+        ProjName   = $Project.Name  
+        ProjConfig = $($Project.Config)
+        StartTime  = "$($StartTime)"
+        EndTime    = "$(Get-Date -format 'HH:mm:ss' )"
+    };
+};
