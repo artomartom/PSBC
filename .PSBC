@@ -1,0 +1,17 @@
+<Objs Version="1.1.0.1" xmlns="http://schemas.microsoft.com/powershell/2004/04">
+  <Obj RefId="0">
+    <TN RefId="0">
+      <T>Project</T>
+      <T>System.Object</T>
+    </TN>
+    <ToString>Project</ToString>
+    <Props>
+      <S N="Path">F:\Dev\Projects\PowerShell</S>
+      <S N="Name">NewProject</S>
+      <S N="Config">Debug</S>
+      <S N="Arch">X64</S>
+      <S N="Before"></S>
+      <S N="After"></S>
+    </Props>
+  </Obj>
+</Objs>
