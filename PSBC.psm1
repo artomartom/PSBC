@@ -63,8 +63,6 @@ Class Project {
 
     }
     
-    # methods :
-    
     hidden [void] Move( [Project]$Other   ) {
         $this.Path = $Other.Path;
         $this.Name = $Other.Name;
@@ -72,15 +70,20 @@ Class Project {
         $this.Arch = $Other.Arch;
         $this.Before = $Other.Before;
         $this.After = $Other.After;
-         
     }
 
-
-    #set methodsSet
+    # methods :
+    #set methods 
     [void] SetPath( [string]$NewPath   ) {
-
-        $this.Path = Resolve-Path  $NewPath;
-        #TODO:serializer moves PSBC file 
+        $IsValidPath = Test-Path $NewPath -PathType Directory;
+        if ($IsValidPath -ne $false) {
+            $this.Path = Resolve-Path  $NewPath;
+            #TODO:serializer moves PSBC file 
+        }
+        else {
+            Write-Error "Can't set new path $($NewPath): it doesn't exist";
+            #TODO: create new directory if it doesn't exist and make it this error an option 
+        }
     }
 
     [void] SetConfig( [string]$Config   ) {
@@ -113,15 +116,31 @@ Class Project {
     [void] SetArch(  [string]$NewArch  ) {
         $this.Arch = $NewArch; 
     }   
+        
+    #get methods
+    [string] GetPath( ) {
+        return $this.Path;
+    }
 
+    [string] GetConfig ( ) {
+        return $this.Config;
+    }
+
+    [string] GetName(  ) {
+        return $this.Name; 
+    }
+
+    [string] GetArch(   ) {
+        return $this.Arch; 
+    }   
       
     
     #  members:
     <# 
     Absolute path to the project's root directory.
             Root directory contains one .PSBC ("$($this.Path)//.PSBC") file storing serizlized Project object
-            leaf of path allowed to be equal to Project::Name member, but not restricted to be the same.
-            #>
+            leaf of path allowed, but not restricted, to be equal to Project::Name member.
+    #>
     hidden [String]$Private:Path = $null;
  
     <# project name / target name (projects producing anything besides one .exe file are no supported for now)
@@ -146,19 +165,53 @@ Class Project {
 
 }
 
-function  Initialize-Project { 
+ 
+function  Get-Project { 
     [CmdletBinding()]
     [OutputType([Project])]
     param(
         [string]$Path = './'
     )
 
-    [Project]$NewProject = [Project]::new( );
-    $NewProject.SetPath( $Path);
-    [Serializer]::Export($NewProject  );
+    [Project]$Project = [Serializer]::Import($Path );
+     
     
+    if ( $null -eq $Project ) {
+        Write-Error 'Project not found';
+        return $null;
+    }
+    else {
+        return  $Project;
+    }
+};
+
+
+function  Initialize-Project { 
+    [CmdletBinding()]
+    # [OutputType([Project])]
+    param(
+        [string]$Path = './'
+    )
+    
+    [Project]$NewProject = [Serializer]::Import($Path );
+    if ($null -eq $NewProject) {
+        
+        [Project]$NewProject = [Project]::new( );
+        #set path to new project before exporting  
+        $NewProject.SetPath( $Path);
+        $res = [Serializer]::Export($NewProject );
+        if ($res -eq $false) {
+            Write-Error 'Exporting failed';
+        }
+        
+    }
+    else {
+        Write-Warning "Commad can not override existing Project $($NewProject.GetName())";
+    }
+
     return $NewProject;
 }; 
+
 function  New-Project { 
     [CmdletBinding()]
     param (
@@ -233,24 +286,6 @@ function  New-Project {
 
     # return $NewProj
 }    
- 
-function  Get-Project { 
-    [CmdletBinding()]
-    [OutputType([Project])]
-    param(
-        [string]$Path = './'
-    )
-
-    [Project]$Project = [Serializer]::Import($Path );
-     
-    
-    if ( $null -eq $Project ) {
-        Write-Error 'Project not found';
-    }
-    else {
-        return  $Project;
-    }
-};
 
 function Execute-Project {
     [CmdletBinding()]
