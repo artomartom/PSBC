@@ -51,9 +51,9 @@ function Invoke-fxcCompiler {
     #Write-Host $Params $paths
  
     if ($LASTEXITCODE -eq 0) {
-        Write-Host  "Shader $($($EntryPoint))/$($Name).hlsl: build succeeded" -For  Green   
+        Write-Host  "Shader $($($EntryPoint))/$($Name).hlsl: build succeeded" -ForegroundColor  Green   
     }
     else {
-        Write-error -Text $captureOutString  
+        Write-Host  "Build Error at $($EntryPoint)" -ForegroundColor red
     };
 };

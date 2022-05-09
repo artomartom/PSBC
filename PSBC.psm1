@@ -114,9 +114,7 @@ Class Project {
         $this.Arch = $NewArch; 
     }   
 
-    [void] Execute(  ) {
-        & "$($this.Path)//Build/$($this.Config)//$($this.Name).exe";
-    }   
+      
     
     #  members:
     <# 
@@ -162,25 +160,30 @@ function  Initialize-Project {
     return $NewProject;
 }; 
 function  New-Project { 
+    [CmdletBinding()]
     param (
-        [Parameter(Mandatory = $true)]
         [string] 
-        $Path 
+        $Path = './NewProject'
     )
-    
-    Import-Module 'F:\Dev\Projects\PowerShell\PSBC.psm1'
-           
+       
     $NewName = Split-Path $Path -Leaf;
-    if (Test-Path $Path ) {
-        Write-Error  "directory with name $($NewName) already exists";
+    $ExistPath = Split-Path $Path;
+
+    #if path to the new directory doesn't exist
+    if ((Test-Path $ExistPath) -eq $false ) {
+        Write-Error  "directory  $ExistPath does not exists";
         return $null;
     }
-        
-    $NewName = Split-Path $Path -Leaf;
+
+    #if path with new directory already exists, don't create new project in it
+    if ((Test-Path $Path) -eq $true ) {
+        Write-Error  "Path  with name $Path already exists";
+        return $null;
+    }
     
-    $ExistPath = Split-Path $Path
+
     $ExistPath = Resolve-Path $ExistPath;
-     
+ 
     if ($null -eq $ExistPath) {
         Write-Error  "Path $($Path) does not exist";
         return $null;
@@ -190,40 +193,45 @@ function  New-Project {
         $Path = Resolve-Path $Path    ;
         Set-Location $Path;
         Write-Host   "Path is $($Path) ";
-        Write-Host   "Existing root path is $($ExistPath) ";
+        Write-Host   'existing PExistPath) ';
         Write-Host   "Name is $($NewName) ";
+
     }
-         
-    git clone https://github.com/artomartom/Hello_World.git  ;
-      
-    if ($LASTEXITCODE -ne 0 ) { return ; };
-      
-    New-Item -Path './Build' -ItemType Directory;
-    Remove-Item -Path './.git' -Recurse -Force;
-    Remove-Item -Path './.gitmodules'  -Force;
-    Remove-Item -Path './Source/Hello'  -Force;
-      
-    $Cmake = 'Source/CMakeLists.txt';
-    $Content = (Get-Content   $Cmake -Raw);
-    $Content.Replace('Hello_World', $NewDir) | Set-Content  $Cmake;
-         
-    git init;
-         
-    git submodule  add https://github.com/artomartom/Hello.git Source/Hello;
-         
+     
+
+    git clone https://github.com/artomartom/Hello_World.git  $Path  ;
+
     if ($LASTEXITCODE -eq 0 ) {
-        Set-Location  ./Source/Hello;
-        git branch -u origin/main main;
-            
+
+        New-Item -Path    "$($Path)/Build" -ItemType Directory;
+        Remove-Item -Path "$($Path)/.git" -Recurse -Force;
+        Remove-Item -Path "$($Path)/.gitmodules"  -Force;
+        Remove-Item -Path "$($Path)/Source/Hello"  -Force;
+  
+        $Cmake = 'Source/CMakeLists.txt';
+        $Content = (Get-Content   "$($Path)//$($Cmake)" -Raw);
+        $Content.Replace('Hello_World', $NewName) | Set-Content  $Cmake;
+
+    }
+    else {
+        Write-Error  'Cloning Hello_World falied: continuing initializing  empty project ...';
     };
-         
-    git add .  ;
-    git commit -m 'init' ;
-    $NewProj = Initialize-Project   ;
-    $NewProj.SetName($NewName);
-    
-    Remove-Module PSBC;
-    return $NewProj
+  
+    git init $Path  ;
+    git submodule  add https://github.com/artomartom/Hello.git './/Source//Hello';
+     
+    if ($LASTEXITCODE -eq 0 ) {
+        Set-Location  "$($Path)//Source//Hello";
+        git branch -u origin/main main;
+        Set-Location  $Path  ;     
+    };
+     
+    git add $Path  ;
+    git commit -m "init $($NewName)" ;
+    #$NewProj = Initialize-Project   ;
+    #$NewProj.SetName($NewName);
+
+    # return $NewProj
 }    
  
 function  Get-Project { 
@@ -243,6 +251,14 @@ function  Get-Project {
         return  $Project;
     }
 };
+
+function Execute-Project {
+    [CmdletBinding()]
+    param(
+        [Project]$Project
+    )
+    & "$($Project.Path)//Build/$($Project.Config)//$($Project.Name).exe";
+}   
 
 function  Make-Project { 
     [CmdletBinding()]
@@ -305,7 +321,7 @@ function  Build-Project {
             $Project.After();
         }
         if ($AndRun) {
-            $Project.Execute();
+            Execute-Project $Project ;
         }
     };
 
