@@ -190,7 +190,7 @@ function  New-Project {
         $Path = Resolve-Path $Path    ;
         Set-Location $Path;
         Write-Host   "Path is $($Path) ";
-        Write-Host   "existing Path is $($ExistPath) ";
+        Write-Host   "Existing root path is $($ExistPath) ";
         Write-Host   "Name is $($NewName) ";
     }
          
