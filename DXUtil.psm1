@@ -1,14 +1,16 @@
 function Invoke-fxcCompiler {
      
     param( 
-        [Parameter(Mandatory = $true)]      [string] $Name  ,
-        [Parameter(Mandatory = $true)]      [ValidateSet('Debug', 'Release')][string] $Config  ,
-        [Parameter(Mandatory = $true)]                                      [string] $OutName ,
-        [Parameter(Mandatory = $true)]      [ValidateSet('so', 'hpp')]      [string] $OutType ,
-        [Parameter(Mandatory = $true)]      [string] $EntryPoint ,
-        [string] $VarName = $EntryPoint,
+        [Parameter(Mandatory = $true)]
+        [string] 
+        $Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]
+        $EntryPoint,
        
-        [Parameter(Mandatory = $true)]      [ValidateSet(
+        [Parameter(Mandatory = $true)]      
+        [ValidateSet(
             'cs_4_0', 'cs_4_1', 'cs_5_0', 'cs_5_1' ,
             'ds_5_0', 'ds_5_1' ,
             'gs_4_0', 'gs_4_1', 'gs_5_0', 'gs_5_1' ,
@@ -26,34 +28,92 @@ function Invoke-fxcCompiler {
             'tx_1_0' ,
             'vs_1_1', 'vs_2_0', 'vs_2_a', 'vs_2_sw', 'vs_3_0', 'vs_3_sw', 'vs_4_0',
             'vs_4_0_level_9_1', 'vs_4_0_level_9_3', 'vs_4_0_level_9_0',
-            'vs_4_1', 'vs_5_0', 'vs_5_1' )]      [string] $Profile  ,
-        [string]  $In ,
-        [string]  $Out  
+            'vs_4_1', 'vs_5_0', 'vs_5_1' )]      
+        [string] 
+        $Profile, 
+
+        [ValidateSet('Object', 'Header')]      
+        [string]
+        $OutputType = 'Header',
+        
+        [string] 
+        $Destination ,
+      
+        [ValidateSet('Debug', 'Release')]
+        [string]
+        $Config = 'Release'
     )
- 
-    $exe = 'C://Program Files (x86)//Windows Kits//10//bin//10.0.22000.0//x64//fxc.exe';                
-    switch ($Config) {
-        'Debug' { $Params = @("/E$($EntryPoint)", '/nologo', "/T$( $Profile)", '/O0', '/WX', '/Zi', '/Zss', '/all_resources_bound' ) }
-        'Release' { $Params = @("/E$($EntryPoint)", '/nologo', "/T$( $Profile)", '/Vd', '/O3', '/WX' ) }
-    };
+        
     
-    switch ($OutType) {
-        'so' { $Params += '/Fo'; }
-        'hpp' { $Params += "/Vn$($VarName)" ; $Params += '/Fh'; }
-    };   
-    
-    $paths =
-    @(
-        "$out//$($OutName).$OutType" ,
-        "$In//$Name.hlsl"     
-    );                                                                            
-    $captureOutString = & $exe  $Params    $paths  ;
-    #Write-Host $Params $paths
- 
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host  "Shader $($($EntryPoint))/$($Name).hlsl: build succeeded" -ForegroundColor  Green   
+    if ((Test-Path $Path) -eq $false) {
+        Write-Error  "Path $($Path) does not exist";
+        return;
     }
     else {
-        Write-Host  "Build Error at $($EntryPoint)" -ForegroundColor red
+        if ((Test-Path $Path -PathType Leaf) -eq $false) {
+            Write-Error  "$(Split-Path $Path -Leaf) is not shader source file. Please, specify a existing path to shader source file.";
+            return;
+        }
+    }
+
+    if ('' -eq $Destination ) {
+         
+        switch ($OutputType) {
+            'Object' { $ext = '.so' ; }
+            'Header' { $ext = '.hpp'; }
+        }; 
+        $Destination = "./$($EntryPoint).$($Profile)$($ext)";
+         
+    }
+    else {
+        #if  $Destination already exists...         
+        if ((Test-Path    $Destination  ) -eq $true) {
+            
+            #... but if leaf of Destination is not a file, but a container,
+            # use this container and default output file name 
+            if ((Test-Path    $Destination -PathType Container) -eq $true) {
+                
+                switch ($OutputType) {
+                    'Object' { $ext = '.so' ; }
+                    'Header' { $ext = '.hpp'; }
+                }; 
+                $Destination = "$($Destination)//$($EntryPoint).$($Profile)$($ext)";
+            }#else means $Destination is path to existing file, so we override it with output  
+        }
+        else { 
+            #file, $Destination points to, may be not existing for the first time we compile...
+            #if  $Destination  doex not exists, separate leaf ( here assume that leaf is output file's name ) from it...
+            $ExistingPath = Split-Path $Destination ;
+            #.. and check again  
+            if ((Test-Path    $ExistingPath) -eq $false) { 
+                Write-Error  "Destination path $($ExistingPath) is not an existing directory.";
+                return;
+            };
+        }
+    }
+
+ 
+    switch ($Config) {
+        'Debug' { $Params = @("/E$($EntryPoint)", "/T$( $Profile)", '/nologo', '/O0', '/WX', '/Zi', '/Zss', '/all_resources_bound' ) }
+        'Release' { $Params = @("/E$($EntryPoint)", "/T$( $Profile)", '/nologo', '/Vd', '/O3', '/WX' ) }
+    };
+    
+    switch ($OutputType) {
+        'Object' { $Params += '/Fo'; }
+        'Header' { $Params += "/Vn$($EntryPoint)" ; $Params += '/Fh'; }
+    };   
+    
+                                                                               
+
+        
+    $exe = 'C://Program Files (x86)//Windows Kits//10//bin//10.0.22000.0//x64//fxc.exe';                
+    $captureOutString = & $exe  $Params  $Destination    $Path ;
+    
+ 
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host  "build succeeded: $($EntryPoint) -> $($Destination)" -ForegroundColor  Green;
+    }
+    else {
+        Write-Host  "Build Error at $($EntryPoint)" -ForegroundColor Red;
     };
 };
