@@ -32,7 +32,7 @@ function Invoke-fxcCompiler {
         [string] 
         $Profile, 
 
-        [ValidateSet('Object', 'Header')]      
+        [ValidateSet('Object', 'Header', 'Library', 'Assembly')]      
         [string]
         $OutputType = 'Header',
         
@@ -41,7 +41,10 @@ function Invoke-fxcCompiler {
       
         [ValidateSet('Debug', 'Release')]
         [string]
-        $Config = 'Release'
+        $Config = 'Release',
+
+        [string]
+        $VarName = $EntryPoint
     )
         
     
@@ -61,6 +64,8 @@ function Invoke-fxcCompiler {
         switch ($OutputType) {
             'Object' { $ext = '.so' ; }
             'Header' { $ext = '.hpp'; }
+            'Library' { $ext = '.lib'; }
+            'Assembly' { $ext = '.asm'; }
         }; 
         $Destination = "./$($EntryPoint).$($Profile)$($ext)";
          
@@ -76,6 +81,9 @@ function Invoke-fxcCompiler {
                 switch ($OutputType) {
                     'Object' { $ext = '.so' ; }
                     'Header' { $ext = '.hpp'; }
+                    'Library' { $ext = '.lib'; }
+                    'Assembly' { $ext = '.asm'; }
+                    
                 }; 
                 $Destination = "$($Destination)//$($EntryPoint).$($Profile)$($ext)";
             }#else means $Destination is path to existing file, so we override it with output  
@@ -91,7 +99,6 @@ function Invoke-fxcCompiler {
             };
         }
     }
-
  
     switch ($Config) {
         'Debug' { $Params = @("/E$($EntryPoint)", "/T$( $Profile)", '/nologo', '/O0', '/WX', '/Zi', '/Zss', '/all_resources_bound' ) }
@@ -99,17 +106,15 @@ function Invoke-fxcCompiler {
     };
     
     switch ($OutputType) {
-        'Object' { $Params += '/Fo'; }
-        'Header' { $Params += "/Vn$($EntryPoint)" ; $Params += '/Fh'; }
+        'Object' { $Params += "/Fo$($Destination)"; }
+        'Header' { $Params += "/Vn$($VarName)" ; $Params += "/Fh$($Destination)"; }
+        'Library' { $Params += "/Fl$($Destination)"; }
+        'Assembly' { $Params += "/Fc$($Destination)"; }
     };   
-    
-                                                                               
 
-        
     $exe = 'C://Program Files (x86)//Windows Kits//10//bin//10.0.22000.0//x64//fxc.exe';                
-    $captureOutString = & $exe  $Params  $Destination    $Path ;
+    $captureOutString = & $exe  $Params      $Path ;
     
- 
     if ($LASTEXITCODE -eq 0) {
         Write-Host  "build succeeded: $($EntryPoint) -> $($Destination)" -ForegroundColor  Green;
     }
