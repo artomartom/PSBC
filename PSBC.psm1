@@ -75,7 +75,7 @@ Class Project {
     # methods :
     #set methods 
     [void] SetPath( [string]$NewPath   ) {
-        $IsValidPath = Test-Path $NewPath -PathType Directory;
+        $IsValidPath = Test-Path $NewPath -PathType  Container;
         if ($IsValidPath -ne $false) {
             $this.Path = Resolve-Path  $NewPath;
             #TODO:serializer moves PSBC file 
@@ -107,6 +107,7 @@ Class Project {
     [void] SetName([string]$NewName ) {
         if ((test-path $NewName -IsValid) -eq $true) {
             $this.Name = $NewName; 
+            [Serializer]::Export($this);
         }
         else {
             Write-Error "Invalid Name $($NewName)";
@@ -133,7 +134,16 @@ Class Project {
     [string] GetArch(   ) {
         return $this.Arch; 
     }   
+    
+    [string[]] GetBefore(   ) {
+        return $this.Before; 
+    }   
+    
+    [string[]] GetAfter(   ) {
+        return $this.After; 
+    }   
       
+    
     
     #  members:
     <# 
@@ -142,6 +152,8 @@ Class Project {
             leaf of path allowed, but not restricted, to be equal to Project::Name member.
     #>
     hidden [String]$Private:Path = $null;
+    hidden [String]$Private:BuildDir = $null;
+    hidden [String]$Private:SourceDir = $null;
  
     <# project name / target name (projects producing anything besides one .exe file are no supported for now)
     #>
@@ -188,7 +200,7 @@ function  Get-Project {
 
 function  Initialize-Project { 
     [CmdletBinding()]
-    # [OutputType([Project])]
+    [OutputType([Project])]
     param(
         [string]$Path = './'
     )
@@ -212,8 +224,20 @@ function  Initialize-Project {
     return $NewProject;
 }; 
 
+
+function  Execute-Commands { 
+    [CmdletBinding()]
+
+    param(
+        [string[]]$Commands 
+    )
+    foreach ($eachCommand in $Commands) {
+        &  eachCommand;
+    }
+}  
 function  New-Project { 
     [CmdletBinding()]
+    [OutputType([Project])]
     param (
         [string] 
         $Path = './NewProject'
@@ -246,7 +270,7 @@ function  New-Project {
         $Path = Resolve-Path $Path    ;
         Set-Location $Path;
         Write-Host   "Path is $($Path) ";
-        Write-Host   'existing PExistPath) ';
+        Write-Host   "existing $($ExistPath)";
         Write-Host   "Name is $($NewName) ";
 
     }
@@ -281,10 +305,10 @@ function  New-Project {
      
     git add $Path  ;
     git commit -m "init $($NewName)" ;
-    #$NewProj = Initialize-Project   ;
-    #$NewProj.SetName($NewName);
+    $NewProj = Initialize-Project   ;
+    $NewProj.SetName($NewName);
 
-    # return $NewProj
+    return $NewProj
 }    
 
 function Execute-Project {
@@ -297,6 +321,7 @@ function Execute-Project {
 
 function  Make-Project { 
     [CmdletBinding()]
+    [OutputType([bool])]
     param(
         [Project]$Project 
     )
@@ -308,23 +333,24 @@ function  Make-Project {
     }
       
     write-host "$($Project.Name) : Running Cmake" -ForegroundColor Green  ;
-      
-    $output = cmake -S "$($Project.Path)//Source//" -B "$($Project.Path)/Build/" -G"Visual Studio 17 2022"  -T host=x64 -A $( $MSBuildArchName);
+
+    #function outs an array of some values,dont know how that works,but we so cast it in case there was an error
+    [string] $output = cmake -S "$($Project.Path)//Source//" -B "$($Project.Path)/Build/" -G"Visual Studio 17 2022"  -T host=x64 -A $( $MSBuildArchName);
    
     if ( $LASTEXITCODE -ne 0) {
-         
-        [pscustomobject]@{
-            Name         = $($Project.Name)
-            Architecture = $($Project.Arch )
-        };
+        
+        
+
         Write-Error  $output ;
-        return $false;
+       
+        return  $false;
     };
     return $true;
 }
 
 function  Build-Project { 
     [CmdletBinding()]
+    [OutputType([void])]
     param(
         [Project]$Project,
         [switch]$AndRun,
@@ -334,11 +360,23 @@ function  Build-Project {
     )
    
     if ($Before) {
-        $Project.Before();
+        Execute-Commands -Commands $Project.GetBefore();
+        
     }
     if ($Make) {
-        if (  $false -eq (Make-Project -Project $Project ) ) {
-            return ;
+        if (  $false -eq (Make-Project -Project $Project) ) {
+             
+         
+            [pscustomobject]@{
+                Status       = 'CMake Error'
+                ProjName     = $Project.Name  
+                ProjConfig   = $($Project.Config)
+                Architecture = $($Project.Arch )
+                StartTime    = "$($StartTime)"
+                EndTime      = "$(Get-Date -format 'HH:mm:ss' )"
+            };
+         
+            return ; #TODO build stars anyways wtf
         };
     }
     
@@ -348,23 +386,24 @@ function  Build-Project {
     cmake --build "$($Project.Path)//Build" --config "$($Project.Config)" ;
     $Status = '';
     if ($LASTEXITCODE -ne 0) {
-        $Status = 'Error';
+        $Status = 'compilation Error';
     }
     else {
         $Status = 'build succeeded';
         if ($After) {
-            $Project.After();
+            Execute-Commands -Commands $Project.GetAfter();  
         }
+        
+        [pscustomobject]@{
+            Status     = $($Status)
+            ProjName   = $Project.Name  
+            ProjConfig = $($Project.Config)
+            StartTime  = "$($StartTime)"
+            EndTime    = "$(Get-Date -format 'HH:mm:ss' )"
+        };
+        
         if ($AndRun) {
             Execute-Project $Project ;
         }
-    };
-
-    [pscustomobject]@{
-        Status     = $($Status)
-        ProjName   = $Project.Name  
-        ProjConfig = $($Project.Config)
-        StartTime  = "$($StartTime)"
-        EndTime    = "$(Get-Date -format 'HH:mm:ss' )"
     };
 };
