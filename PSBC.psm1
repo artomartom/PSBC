@@ -352,6 +352,12 @@ function  Build-Project {
     [CmdletBinding()]
     [OutputType([void])]
     param(
+[Parameter(
+        Position=0, 
+        Mandatory=$true, 
+        ValueFromPipeline=$true,
+        ValueFromPipelineByPropertyName=$true)
+    ]
         [Project]$Project,
         [switch]$AndRun,
         [switch]$Make,
