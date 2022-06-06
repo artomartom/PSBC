@@ -1,5 +1,5 @@
-function Invoke-fxcCompiler {
-     
+
+[CmdletBinding()]
     param( 
         [Parameter(Mandatory = $true)]
         [string] 
@@ -121,4 +121,4 @@ function Invoke-fxcCompiler {
     else {
         Write-Host  "Build Error at $($EntryPoint)" -ForegroundColor Red;
     };
-};
+ 

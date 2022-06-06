@@ -13,7 +13,7 @@ Class Serializer {
 
             
 
-            Write-host "$($Object.Path): Exporting"
+            Write-Debug "$($Object.Path): Exporting"
             $Object | Export-Clixml "$($Object.Path)//.PSBC";
             return $true;
         }
@@ -28,12 +28,12 @@ Class Serializer {
         [Project] $deserializedProject = $null;
         #if path exists resolve it and check if it conteins the file 
         if ((Test-Path $Path) -eq $true) {
-            #Write-host 'test-path succ'
+            #Write-Debug 'test-path succ'
             $Path = Resolve-Path $Path;
 
             Get-ChildItem  $Path -Filter '.PSBC' | Where-Object { 
                 $deserializedProject = Import-CliXml "$($Path)//.PSBC";
-                #Write-host 'importing...'
+                #Write-Debug 'importing...'
                 #if deserialized is not same type don't return it, return #null
                 if ([type]$deserializedProject.ToString() -ne [Project]) {
                     $deserializedProject = $null;
@@ -59,8 +59,6 @@ Class Project {
         $this.Arch = 'X64';
         $this.Before = $null;
         $this.After = $null;
-       
-
     }
     
     hidden [void] Move( [Project]$Other   ) {
@@ -135,45 +133,37 @@ Class Project {
         return $this.Arch; 
     }   
     
-    [string[]] GetBefore(   ) {
-        return $this.Before; 
-    }   
-    
-    [string[]] GetAfter(   ) {
-        return $this.After; 
-    }   
-      
-    
-    
     #  members:
     <# 
     Absolute path to the project's root directory.
             Root directory contains one .PSBC ("$($this.Path)//.PSBC") file storing serizlized Project object
             leaf of path allowed, but not restricted, to be equal to Project::Name member.
     #>
-    hidden [String]$Private:Path = $null;
-    hidden [String]$Private:BuildDir = $null;
-    hidden [String]$Private:SourceDir = $null;
+    [String]$Private:Path = $null;
+    [String]$Private:BuildDir = 'not implemented';
+    [String]$Private:SourceDir = 'not implemented';
  
     <# project name / target name (projects producing anything besides one .exe file are no supported for now)
     #>
-    hidden [String]$Private:Name = $null;
+    [String]$Private:Name = $null;
     
     <# project's configuration 
     TODO: add strong typization to this member, different build options support   
     #>
-    hidden [String]$Private:Config = $null;
+    [String]$Private:Config = $null;
  
     <# project's architecture
     don't see much sense to add anything here, it just exists as a member for now   
     #>
-    hidden [String]$Private:Arch = $null;
+    [String]$Private:Arch = $null;
  
     <#  array of path to invokable files to execute before starting project::build method  #>
-    hidden [String[]]$Private:Before = $null;
+    [String[]]$Private:Before = $null;
  
     <#      same as $before, but after,u get it lol    #>
-    hidden [String[]]$Private:After = $null; 
+    [String[]]$Private:After = $null; 
+
+    [String]$Private:ToolChain = $null; 
 
 }
 
@@ -223,8 +213,6 @@ function  Initialize-Project {
 
     return $NewProject;
 }; 
-
-
 function  Execute-Commands { 
     [CmdletBinding()]
 
@@ -242,7 +230,7 @@ function  New-Project {
         [string] 
         $Path = './NewProject'
     )
-       
+    $DebugPreference = 'Continue';
     $NewName = Split-Path $Path -Leaf;
     $ExistPath = Split-Path $Path;
 
@@ -269,9 +257,8 @@ function  New-Project {
         New-Item -Path $ExistPath -Name $NewName -ItemType Directory;
         $Path = Resolve-Path $Path    ;
         Set-Location $Path;
-        Write-Host   "Path is $($Path) ";
-        Write-Host   "existing $($ExistPath)";
-        Write-Host   "Name is $($NewName) ";
+        Write-Debug   "Creating $($NewName)...";
+        Write-Debug   "Here $($Path)";
 
     }
      
@@ -305,7 +292,7 @@ function  New-Project {
      
     git add $Path  ;
     git commit -m "init $($NewName)" ;
-    $NewProj = Initialize-Project   ;
+    [Project]$NewProj = [Project](Initialize-Project $Path ) ;
     $NewProj.SetName($NewName);
 
     return $NewProj
@@ -332,15 +319,13 @@ function  Make-Project {
         Default { Write-Error "Invalid input parameter 'Arch' $($Project.Arch)"; return $false; }
     }
       
-    write-host "$($Project.Name) : Running Cmake" -ForegroundColor Green  ;
+    Write-Host "$($Project.Name) : Running Cmake" -ForegroundColor Green  ;
 
     #function outs an array of some values,dont know how that works,but we so cast it in case there was an error
-    [string] $output = cmake -S "$($Project.Path)//Source//" -B "$($Project.Path)/Build/" -G"Visual Studio 17 2022"  -T host=x64 -A $( $MSBuildArchName);
+    [string] $output = cmake -S "$($Project.Path)//Source//" -B "$($Project.Path)/Build/" -G"Visual Studio 17 2022"  -T host=x64 -A $( $MSBuildArchName)`
+        -DCMAKE_TOOLCHAIN_FILE="$($Project.ToolChain)";
    
     if ( $LASTEXITCODE -ne 0) {
-        
-        
-
         Write-Error  $output ;
        
         return  $false;
@@ -352,12 +337,12 @@ function  Build-Project {
     [CmdletBinding()]
     [OutputType([void])]
     param(
-[Parameter(
-        Position=0, 
-        Mandatory=$true, 
-        ValueFromPipeline=$true,
-        ValueFromPipelineByPropertyName=$true)
-    ]
+        [Parameter(
+            Position = 0, 
+            Mandatory = $true, 
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true)
+        ]
         [Project]$Project,
         [switch]$AndRun,
         [switch]$Make,
