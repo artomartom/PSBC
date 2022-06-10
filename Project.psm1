@@ -301,6 +301,11 @@ function  New-Project {
 function Execute-Project {
     [CmdletBinding()]
     param(
+        [Parameter(
+            Position = 0, 
+            Mandatory = $true, 
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true)]
         [Project]$Project
     )
     & "$($Project.Path)//Build/$($Project.Config)//$($Project.Name).exe";
