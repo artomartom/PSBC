@@ -57,17 +57,17 @@ Class Project {
         $this.Name = 'NewProject';
         $this.Config = 'Debug';
         $this.Arch = 'X64';
-        $this.Before = $null;
-        $this.After = $null;
+        $this.PreBuildEvent = $null;
+        $this.PostBuildEvent = $null;
     }
-    
+     
     hidden [void] Move( [Project]$Other   ) {
         $this.Path = $Other.Path;
         $this.Name = $Other.Name;
         $this.Config = $Other.Config;
         $this.Arch = $Other.Arch;
-        $this.Before = $Other.Before;
-        $this.After = $Other.After;
+        $this.PreBuildEvent = $Other.PreBuildEvent;
+        $this.PostBuildEvent = $Other.PostBuildEvent;
     }
 
     # methods :
@@ -158,10 +158,10 @@ Class Project {
     [String]$Private:Arch = $null;
  
     <#  array of path to invokable files to execute before starting project::build method  #>
-    [String[]]$Private:Before = $null;
+    [String[]]$Private:PreBuildEvent = $null;
  
-    <#      same as $before, but after,u get it lol    #>
-    [String[]]$Private:After = $null; 
+    <#      same as $PreBuildEvent, but PostBuildEvent,u get it lol    #>
+    [String[]]$Private:PostBuildEvent = $null; 
 
     [String]$Private:ToolChain = $null; 
 
@@ -351,12 +351,12 @@ function  Build-Project {
         [Project]$Project,
         [switch]$AndRun,
         [switch]$Make,
-        [switch]$Before,
-        [switch]$After
+        [switch]$PreBuildEvent,
+        [switch]$PostBuildEvent
     )
    
-    if ($Before) {
-        Execute-Commands -Commands $Project.GetBefore();
+    if ($PreBuildEvent) {
+        Execute-Commands -Commands $Project.PreGetBuildEvent();
         
     }
     if ($Make) {
@@ -386,8 +386,8 @@ function  Build-Project {
     }
     else {
         $Status = 'build succeeded';
-        if ($After) {
-            Execute-Commands -Commands $Project.GetAfter();  
+        if ($PostBuildEvent) {
+            Execute-Commands -Commands $Project.GetPostBuildEvent();  
         }
         
         [pscustomobject]@{

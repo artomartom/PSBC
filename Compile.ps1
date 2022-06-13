@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [string[]]$cpp,
-    [switch]$lol=$false
+    [switch]$Dbg = $false
 )
 $name = Split-Path $cpp[0] -Leaf;
 $ext = Split-Path  $name  -Extension;
@@ -14,9 +14,8 @@ $BuildArgs = @(
     '/std:c++20',
     "/Fe$($name)"
 );
-if($lol){
-    
-    $BuildArgs+= '/Zi';
+if ($dbg) {
+    $BuildArgs += '/Zi';
 } 
 
 $compilerOutput = cl.exe $cpp  $BuildArgs  ;

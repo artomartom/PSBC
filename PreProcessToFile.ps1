@@ -9,18 +9,21 @@ param(
         ValueFromPipelineByPropertyName = $true)
     ]
     [string]$SourceFile,
-    [string[]]$AddIncludes
+    [string[]]$AddIncludes ='./'
 )
 
 $SourceFile = [string](Resolve-Path $SourceFile);
 $SourceFileName = Split-Path $SourceFile -LeafBase;
 
 
-[string[]]$Includes = @()
-$AddIncludes | ForEach-Object {
-    $Fullpath = [string](Resolve-Path $_);
-    $Includes += $Fullpath.insert(0, '/I');
-};
+if( $AddIncludes ) {
+
+	[string[]]$Includes = @()
+	$AddIncludes | ForEach-Object {
+	    $Fullpath = [string](Resolve-Path $_);
+	    $Includes += $Fullpath.insert(0, '/I');
+	};
+}; 
  
 cl.exe $SourceFile '/P' "/Fi./$($SourceFileName).i" $Includes ;
 
